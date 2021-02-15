@@ -1,0 +1,82 @@
+---
+# defaults file for roles/jitsi
+
+# enable jitsi authentifaction for new conferences?
+jitsi_authentication_enabled: False
+
+jitsi_optimal_browsers: "[ 'chrome', 'chromium', 'nwjs', 'electron', 'safari' ]"
+jitsi_unsupported_browsers: "[ 'firefox' ]"
+
+jitsi_config_DEFAULT_REMOTE_DISPLAY_NAME: 'Participant'
+jitsi_config_DEFAULT_LOCAL_DISPLAY_NAME: 'me'
+
+# startpage customization:
+jitsi_support_url: 'https://community.jitsi.org'
+jitsi_footer_powered_by_name: 'jitsi'
+jitsi_footer_powered_by_url: 'https://jitsi.org'
+jitsi_footer_powered_dataprotection_text: ''
+jitsi_footer_powered_dataprotection_url: ''
+jitsi_footer_powered_imprint_text: ''
+jitsi_footer_powered_imprint_url: ''
+
+jitsi_sip_enabled: False
+jitsi_sip_server: 'notSet'
+jitsi_sip_account: 'notSet'
+jitsi_sip_password: 'notSet'
+jitsi_sip_default_room: 'siptest'
+jitsi_jibri_enabled: True
+jitsi_jibri_recording_directory: '/var/recordings'
+jitsi_ip: '{{ jitsi_external_ip }}'
+jitsi_recent_list_enabled: True
+
+jitsi_tls_cert: '/etc/letsencrypt/live/{{ jitsi_hostname }}/fullchain.pem'
+jitsi_tls_privkey: '/etc/letsencrypt/live/{{ jitsi_hostname }}/privkey.pem'
+
+jitsi_startAudioOnly: True
+jitsi_enableNoAudioDetection: True
+jitsi_enableNoisyMicDetection: True
+# will save CPU:
+jitsi_disableAudioLevels: False
+jitsi_audioLevelsInterval: 250
+# warning, will consume a lot of bandwith:
+jitsi_disableSimulcast: False
+
+# should reduce load and fixed flickering text in screen sharing:
+jitsi_disable_video_background: True
+
+jitsi_enableLayerSuspension: True
+jitsi_channelLastN: 4
+jitsi_requireDisplayName: True
+jitsi_defaultLanguage: 'en'
+
+# 1080p, 720p, 480p
+jitsi_resolution_profile: '480p'
+jitsi_backToP2PDelay: 5
+jitsi_desktopSharingFrameRate_min: 5
+jitsi_desktopSharingFrameRate_max: 30
+
+# enable p2p mode when only 2 participants are present (recommend):
+jitsi_enable_p2p_mode: True
+# h264 for 1:1 and p2p-modes:
+jitsi_disableH264_1on1: True
+jitsi_disableH264_p2p: True
+jitsi_preferH264_1on1: False
+jitsi_preferH264_p2p: False
+
+# optional:
+# Deactivate audio/video after the Nth participant is present (at start)
+# jitsi_startVideoMuted: 10
+# jitsi_startAudioMuted: 10
+
+# jitsi default is "INFO" which logs ip-addresses:
+jitsi_videobridge_loglevel: 'WARNING'
+jitsi_statistics_enabled: True
+
+jitsi_stun_mapping_harvester_addresses: "meet-jit-si-turnrelay.jitsi.net:443"
+
+
+# analytics
+#jitsi_google_analytics_tracking_id: 'your-tracking-id-UA-123456-1'
+#jitsi_matomo_endpoint: 'https://your-matomo-endpoint/'
+#jitsi_matomo_siteid: '10'
+#jitsi_amplitudeAPPKey: 'appkey'

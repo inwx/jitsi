@@ -1,0 +1,286 @@
+---
+# tasks file for roles/jitsi
+
+# Prerequisites
+- name: Enable ALSA loopback kernel-module
+  modprobe:
+    name: snd_aloop
+    state: 'present'
+  notify:
+    - 'Restart jitsi'
+
+- name: Add snd_aloop to /etc/modules
+  lineinfile:
+    path: /etc/modules
+    state: present
+    regexp: '^snd_aloop'
+    line: 'snd_aloop'
+
+- name: 'get keys for required repositories'
+  apt_key:
+    state: 'present'
+    url: '{{ item }}'
+  loop:
+    - 'https://dl-ssl.google.com/linux/linux_signing_key.pub'
+    - 'https://adoptopenjdk.jfrog.io/adoptopenjdk/api/gpg/key/public'
+    - 'https://download.jitsi.org/jitsi-key.gpg.key'
+
+- name: 'add required repositories'
+  apt_repository:
+    repo: '{{ item }}'
+    state: 'present'
+    update_cache: yes
+  loop:
+    - 'deb https://adoptopenjdk.jfrog.io/adoptopenjdk/deb/ buster main'
+    - 'deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main'
+    - 'deb https://download.jitsi.org stable/'
+
+- name: 'install debconf'
+  apt:
+    cache_valid_time: '3600'
+    name:
+      - 'debconf'
+      - 'debconf-utils'
+
+- name: 'preseed installation with debconf'
+  debconf:
+    name: '{{ item.name }}'
+    question: '{{ item.question }}'
+    unseen: yes
+    value: '{{ item.value }}'
+    vtype: '{{ item.vtype }}'
+  loop: '{{ jitsi_debconf }}'
+
+- name: 'install required packages'
+  apt:
+    cache_valid_time: '3600'
+    name:
+      - 'apt-transport-https'
+      - 'ffmpeg'
+      - 'google-chrome-stable'
+      - 'adoptopenjdk-8-hotspot'
+      - 'alsa-utils'
+      - 'icewm'
+      - 'xdotool'
+      - 'xserver-xorg-input-void'
+      - 'xserver-xorg-video-dummy'
+      - 'jitsi-meet'
+      - 'jigasi'
+      - 'jibri'
+  notify:
+    - 'Restart nginx'
+
+# Configure coturn
+
+- name: 'template coturn configuration'
+  template:
+    backup: yes
+    dest: '/etc/turnserver.conf'
+    mode: '0644'
+    src: 'coturn/turnserver.conf.j2'
+  notify:
+    - 'Restart coturn'
+
+# Tasks necessary for Google Chrome
+
+- name: 'create directory for google chrome managed policies'
+  file:
+    mode: '0755'
+    path: '/etc/opt/chrome/policies/managed/'
+    state: 'directory'
+
+- name: 'template google chrome managed policies'
+  template:
+    backup: yes
+    dest: '/etc/opt/chrome/policies/managed/managed_policies.json'
+    mode: '0644'
+    src: 'chrome_managed_policies.json.j2'
+
+- name: 'get latest chromedriver version'
+  uri:
+    url: https://chromedriver.storage.googleapis.com/LATEST_RELEASE
+    return_content: yes
+  register: jitsi_chromedriver_version
+
+- name: 'get latest chromedriver'
+  unarchive:
+    dest: '/usr/local/bin'
+    mode: '0755'
+    remote_src: yes
+    src: 'http://chromedriver.storage.googleapis.com/{{ jitsi_chromedriver_version.content }}/chromedriver_linux64.zip'
+  notify:
+    - 'Restart nginx'
+    - 'Restart jitsi'
+
+# Tasks for jitsi
+
+# Following two tasks are necessary as long the previous set
+# settings in debconf get (for some reason) overwritten as you install
+# jitsi-meet. 
+- name: 'set symlink for tls cert'
+  file:
+    path: '/etc/ssl/{{ jitsi_hostname }}.crt'
+    src: '{{ jitsi_tls_cert }}'
+    state: 'link'
+  notify:
+    - 'Restart nginx'
+
+- name: 'set symlink for tls privkey'
+  file:
+    path: '/etc/ssl/{{ jitsi_hostname }}.key'
+    src: '{{ jitsi_tls_privkey }}'
+    state: 'link'
+  notify:
+    - 'Restart nginx'
+
+# Adoptopenjdk provides safe LTS builds for java 8. 99.9% of Jitsi is compatible with Java 11, but Jibri. 
+# This task can be removed as soon as Java 11 is fully supported.
+- name: 'set java 8 as default jre without breaking everything'
+  alternatives:
+    name: 'java'
+    path: '/usr/lib/jvm/adoptopenjdk-8-hotspot-amd64/bin/java'
+  notify:
+    - 'Restart jitsi'
+
+- name: 'make sure user turnserver is in group ssl-cert'
+  user:
+    append: yes
+    groups: 'ssl-cert'
+    name: 'turnserver'
+    state: 'present'
+
+- name: 'template nginx config'
+  template:
+    backup: yes
+    dest: '/etc/nginx/sites-available/{{ jitsi_hostname }}.conf'
+    mode: '0644'
+    src: 'nginx.conf.j2'
+  notify:
+    - 'Restart nginx'
+
+- name: 'template prosody config'
+  template:
+    backup: yes
+    dest: '/etc/prosody/conf.avail/{{ jitsi_hostname }}.cfg.lua'
+    mode: '0644'
+    src: 'prosody.j2'
+  notify:
+    - 'Restart jitsi'
+
+- name: 'template jitsi-meet config'
+  template:
+    backup: yes
+    dest: '/etc/jitsi/meet/{{ jitsi_hostname }}-config.js'
+    mode: '0644'
+    src: 'config.js.j2'
+  notify:
+    - 'Restart jitsi'
+
+- name: 'replace jitsi-meet-web logo'
+  copy:
+    dest: '/usr/share/jitsi-meet/images/watermark.png'
+    mode: '0644'
+    src: 'watermark.png'
+
+- name: 'template jicofo config'
+  template:
+    backup: yes
+    dest: '/etc/jitsi/jicofo/{{ item }}'
+    mode: '0644'
+    src: 'jicofo/{{ item }}.j2'
+  loop:
+    - 'config'
+  notify:
+    - 'Restart jitsi'
+
+- name: 'template jicofo sip-communicator config'
+  template:
+    backup: yes
+    dest: '/etc/jitsi/jicofo/{{ item }}'
+    mode: '0600'
+    src: 'jicofo/{{ item }}.j2'
+  loop:
+    - 'sip-communicator.properties'
+  notify:
+    - 'Restart jitsi'
+
+- name: 'template jigasi config'
+  template:
+    backup: yes
+    dest: '/etc/jitsi/jigasi/{{ item }}'
+    mode: '0644'
+    src: 'jigasi/{{ item }}.j2'
+  loop:
+    - 'sip-communicator.properties'
+    - 'config'
+  notify:
+    - 'Restart jitsi'
+  when: jitsi_sip_enabled
+
+- name: 'template jitsi-videobridge config'
+  template:
+    backup: yes
+    dest: '/etc/jitsi/videobridge/{{ item }}'
+    mode: '0644'
+    src: 'videobridge/{{ item }}.j2'
+  loop:
+    - 'sip-communicator.properties'
+    - 'config'
+  notify:
+    - 'Restart jitsi'
+
+- name: 'create recordings folder'
+  file:
+    group: 'jibri'
+    mode: '0755'
+    owner: 'jibri'
+    path: '{{ jitsi_jibri_recording_directory }}'
+    state: 'directory'
+
+- name: 'template jibri config'
+  template:
+    backup: yes
+    dest: '/etc/jitsi/jibri/{{ item }}'
+    mode: '0644'
+    src: 'jibri/{{ item }}.j2'
+  loop:
+    - 'config.json'
+    - 'finalize.sh'
+  notify:
+    - 'Restart jitsi'
+
+- name: 'template jitsi-meet-web config (this is normal to have changed state after updates)'
+  template:
+    backup: yes
+    dest: '/usr/share/jitsi-meet/interface_config.js'
+    mode: '0644'
+    src: 'interface_config.js.j2'
+
+- name: 'template additional content for welcome page (this is normal to have changed state after updates)'
+  template:
+    backup: yes
+    dest: '/usr/share/jitsi-meet/static/welcomePageAdditionalContent.html'
+    mode: '0644'
+    src: 'welcomePageAdditionalContent.html.j2'
+
+- name: Set Loglevel of videobridge
+  lineinfile:
+   dest: "/etc/jitsi/videobridge/logging.properties"
+   line: ".level={{ jitsi_videobridge_loglevel }}"
+   regexp: "^.level="
+  notify:
+    - 'Restart videobridge'
+
+- name: 'flush handlers'
+  meta: flush_handlers
+
+- name: 'add internal to prosody'
+  command: 'prosodyctl register {{ item.name }} auth.{{ jitsi_hostname }} {{ item.password }}'
+  loop: '{{ jitsi_internal_users }}'
+  notify:
+    - 'Restart jitsi (lite)'
+
+- name: 'add recorder user to prosody'
+  command: 'prosodyctl register recorder recorder.{{ jitsi_hostname }} {{ jitsi_jibri_password }}'
+  notify:
+    - 'Restart jitsi (lite)'

@@ -1,0 +1,60 @@
+---
+# handlers file for roles/jitsi
+
+- name: 'Restart coturn'
+  listen: 'Restart coturn'
+  systemd:
+    name: 'coturn'
+    state: 'restarted'
+
+- name: 'Restart nginx'
+  listen: 'Restart nginx'
+  systemd:
+    name: 'nginx'
+    state: 'restarted'
+
+- name: 'Restart jitsi'
+  listen: 'Restart jitsi'
+  systemd:
+    enabled: yes
+    name: '{{ item }}'
+    state: 'restarted'
+  with_items:
+    - 'jicofo'
+    - 'jitsi-videobridge2'
+    - 'prosody'
+    - 'jigasi'
+    - 'jibri'
+    - 'jibri-icewm'
+    - 'jibri-xorg'
+  notify: 'Disable Jigasi'
+
+- name: 'Restart jitsi (lite)'
+  listen: 'Restart jitsi (lite)'
+  systemd:
+    enabled: yes
+    name: '{{ item }}'
+    state: 'restarted'
+  with_items:
+    - 'jigasi'
+    - 'jibri'
+    - 'jibri-icewm'
+    - 'jibri-xorg'
+  notify: 'Disable Jigasi'
+
+- name: 'Restart videobridge'
+  listen: 'Restart videobridge'
+  systemd:
+    enabled: yes
+    name: '{{ item }}'
+    state: 'restarted'
+  with_items:
+    - 'jitsi-videobridge2'
+
+- name: 'Disable Jigasi'
+  listen: 'Disable Jigasi'
+  systemd:
+    name: 'jigasi'
+    enabled: no
+    state: 'stopped'
+  when: not jitsi_sip_enabled

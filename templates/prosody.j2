@@ -81,7 +81,8 @@ VirtualHost "auth.{{ jitsi_hostname }}"
     }
     authentication = "internal_plain"
 
-Component "focus.{{ jitsi_hostname }}"
+Component "focus.{{ jitsi_hostname }}" "client_proxy"
+    target_address = "focus@auth.{{ jitsi_hostname }}"
     component_secret = "{{ jitsi_jicofo_secret }}"
 
 Component "speakerstats.{{ jitsi_hostname }}" "speakerstats_component"
